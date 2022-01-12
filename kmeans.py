@@ -132,29 +132,37 @@ def k_means(data, loop=50):
             c2 = np.random.rand(dim,1)
     return ss
 
-def count_adja(mask, r:int, i, j):
+def over_thresh(mask, r:int, i, j, thresh):
+    '''Help function for remove_noise function.
+    '''
     count = -1
     v = mask[i][j]
     for m in range(i-r, i+r+1):
         for n in range(j-r, j+r+1):
             if mask[m][n] == v:
                 count+=1
-    return count 
+                if count >= thresh:
+                    return True
+    return False 
 
-def remove_noise(mask:np.ndarray, thresh = 1, exten = 1, rcopper=True, rboard=True):
+def remove_noise(mask:np.ndarray, thresh = 1, exten = 1, rheart=True, rnonheart=True):
+    '''To remove noises from the mask.
+    '''
     s1 = mask.shape[0]
     s2 = mask.shape[1]
-
-    for i in range(s1):
+    t = 0
+    for i in tqdm(range(s1)):
         for j in range(s2):
-            if (not rcopper) and mask[i][j] == 1:
+            if (not rheart) and mask[i][j] == 1:
                 continue
-            if (not rboard) and mask[i][j] == 0:
+            if (not rnonheart) and mask[i][j] == 0:
                 continue
             if (i < exten) or (i >= s1-exten) or (j < exten) or (j >= s2-exten):
                 continue 
-            if count_adja(mask, exten, i, j) <= thresh:
+            if not over_thresh(mask, exten, i, j, thresh):
+                t+=1
                 mask[i][j] = 1-mask[i][j]
+    print(t)
     return mask
 
 import copy
