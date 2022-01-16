@@ -25,8 +25,8 @@ Our proposed method is in main.ipynb.
     
     
 2. **Get training data**
-  - In this dataset, we want to prepare the training data using k_mean_ddl.
-  - We should run k_mean_ddl with different discount factors to see different effects. 
+  - In this dataset, we want to prepare the training data using k_means_ddf function with discount factor in main.ipynb.
+  - We should run k_means_ddf with different discount factors to see different effects. 
   - We want to select confident pixels that definitely belong to one class. For example, we should be confident that the pixels in the middle of a beating heart should always be classified as heart pixel, while pixels around corners would almost always be classified as background. We run k_mean_ddl twice with different discount factors to get two masks for the confident heart pixels and background pixels. We can extract values with the masks, and attach labels to form a dataset. Note remove_noise function can also be used here to assist selection.
   - At the end of this step, we should have a dataset with labels in the shape of [m, n+1], m is data points extracted, n is the number of image, 1 is the label. 
   - This step is interchangable with selecting pixels manually using matlab. 
