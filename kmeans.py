@@ -1,31 +1,3 @@
-# import os 
-
-
-# im_path = '/Users/kevin/Desktop/Heart_Segmentation/data'
-
-
-# name_path_dir = {
-#     'R1-1-' : 'R1/i1',
-#     'R1-2-' : 'R1/i2',
-#     'R2-2-' : 'R2/i2',
-#     'R3-2-' : 'R3/i1',
-#     'R3-2-' : 'R2/i2',
-#     'r4a1-' : 'R4/a1',
-#     'r4a1-' : 'R4/a2',
-#     'r4b1-' : 'R4/b1',
-#     'r4b2-' : 'R4/b2',
-#     'r5a1-' : 'R5/a1',
-# }
-
-
-# def create_video():
-#     for p in name_path_dir.items():
-#         inp = os.path.join(im_path, 'images', p[1], p[0]+'%d.jpg')
-#         outp = os.path.join(im_path, p[0][:-1] + '.mp4')
-#         os.system(f'ffmpeg -r 30 -i {inp} -c:v libx264 -vf fps=30 -pix_fmt yuv420p {outp}')
-        
-
-# create_video()
 import scipy.io as sio
 import os
 import math
@@ -33,7 +5,8 @@ import numpy as np
 import pandas as pd
 import io
 from PIL import Image
-
+import copy
+import argparse
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
@@ -56,7 +29,6 @@ def plot_result(img:np.ndarray, mask:np.ndarray, fig_path:str, name_panel:str, n
         name_panel: name of the four panel plot, set to '' to avoid saving the fig
         name_single: name of the single red mask image to be saved, set to '' to avoid saving the fig
     '''
-#     img=mpimg.imread(im_path)
     fig = plt.subplots(nrows=2, ncols=2, figsize=(10,10))
     
     ax1 = plt.subplot(2, 2, 1)
@@ -64,7 +36,6 @@ def plot_result(img:np.ndarray, mask:np.ndarray, fig_path:str, name_panel:str, n
 
     ax2 = plt.subplot(2, 2, 2)
     imgplot = plt.imshow(mask, cmap="gray")
-
 
     ax3 = plt.subplot(2, 2, 3)
     img = np.multiply(img,mask)
@@ -76,23 +47,24 @@ def plot_result(img:np.ndarray, mask:np.ndarray, fig_path:str, name_panel:str, n
 
     for i in range(0, 100):
         for j in range(0, 100):
-            if(rgb[i][j][0] == 0):
+            if(mask[i][j] == 0):
                 rgb[i][j][0] = 255
     imgplot = plt.imshow(rgb)
-    
-    # save single red mask image
-    if name_single != '':
-        Image.fromarray(rgb.astype(np.uint8)).save(os.path.join(fig_path, name_single))
-    
+        
     ax1.title.set_text('Original Image')
     ax2.title.set_text('Mask Image')
     ax3.title.set_text('Masked Original Heart Image')
     ax4.title.set_text('Colored Masked Heart Image')
     
+    # save single red mask image
+    if name_single != '':
+        Image.fromarray(rgb.astype(np.uint8)).save(os.path.join(fig_path, name_single))
+        
     # save the whole panel
     if name_panel != '':
         plt.savefig(os.path.join(fig_path, name_panel))
-#     plt.show()
+
+    # plt.show()
     plt.clf()
     
 
@@ -102,7 +74,8 @@ def k_means(data, loop=50):
     Params: 
         data: in shap of [h, w, frames]
         loop: num of iterations for k-means.
-        
+    Return: 
+        ss: output mask by kmeans. It has the same dimension as input.
      
     '''
     _,_,dim = data.shape
@@ -197,8 +170,10 @@ def remove_noise(mask:np.ndarray, thresh = 1, exten = 1, rheart=True, rnonheart=
     print(t)
     return mask
 
-import copy
-import argparse
+
+# You can load in any format of data.
+# Here data is prepared as .mat files here
+# But the final data should be in shape of [h, w, n] here, representing n continuous h*w grayscale images from a movie.
 def argparser():
     parser = argparse.ArgumentParser(description="K-Means.")
     parser.add_argument("--n", required=True,help="Name")
@@ -209,40 +184,40 @@ args = argparser()
 name = args.n
 fr = int(args.f)
 
-# data is prepared as .mat files here
-# data should be in shape of [h, w, total_frames] here, representing n grayscale images of n frames.
 print(name + ' with ' + str(fr) + ' frame')
 dt = sio.loadmat('../data/' + name + '.mat')
 data = dt['images1'].astype(np.double)
+#----------------------Data Loaded--------------------------
+print(data.shape)
+
 
 # normalization
-img = data[:,:,0]
-img = (img - np.min(img)) / (np.max(img) - np.min(img)) *255 
-
 dmin = np.repeat(np.min(data, 2)[:, :, np.newaxis], 1024, axis=2)
 dmax = np.repeat(np.max(data, 2)[:, :, np.newaxis], 1024, axis=2)
 data = (data - dmin) / (dmax - dmin) 
 
+# the first img / the background img.
+img = data[:,:,0]
+
 # slice data to use intended frames
 data = data[:,:,:fr] # slice frame 
-print(data.shape)
+
+# run k-means
 ss = k_means(data, 50)
 
 # if mask is reversed, change here to ss = np.where(ss == 2, 0, 1)
 ss = np.where(ss == 2, 1, 0)
 
+# note the path should exist
 print(f'Heart Ratio: {str((1 - np.count_nonzero(ss) / 10000))}')
 plot_result(img, ss, '../outputs/',  name+"KMeansOrigin"+str(fr), name+'kmeans'+str(fr)+'_orginal.png')
 
+# plot effect of remove_noise function
 kk = copy.deepcopy(ss)
 kk = remove_noise(kk, 20, 3)
 kk = remove_noise(kk, 10, 2)
 kk = remove_noise(kk, 3, 1)
-tmp = kk + ss 
-tmp = np.where(tmp==1, 1, 0)
-print(np.count_nonzero(tmp))
 
-# if mask is reversed, change here to ss = np.where(ss == 2, 0, 1)
 plot_result(img, kk, '../outputs/', name+"KMeansPostp"+str(fr), name+'kmeans' + str(fr) +'_postprocess.png')
 
 
